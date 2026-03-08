@@ -11,6 +11,24 @@ const {
   removeSchedule,
   getSchedules,
 } = require('./scheduler');
+const {
+  getTodayAttendance,
+  formatDailyReport,
+  getAttendanceByDate,
+  getProjects,
+  addProject,
+  removeProject,
+} = require('./clockin');
+const {
+  getRecentEmails,
+  sendEmail,
+  replyToEmail,
+  searchEmails,
+  listFiles,
+  searchFiles,
+  createFile,
+  readFile,
+} = require('./microsoft');
 
 const client_ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -103,6 +121,115 @@ const TOOLS = [
     description: 'List all currently active scheduled messages.',
     input_schema: { type: 'object', properties: {} },
   },
+
+  // ── Microsoft 365 Tools ───────────────────────────────────────────────
+  {
+    name: 'get_recent_emails',
+    description: 'Get the most recent emails from the Outlook inbox.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', description: 'Number of emails to fetch (default 5, max 20)' },
+      },
+    },
+  },
+  {
+    name: 'send_email',
+    description: 'Send an email via Outlook.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient email address' },
+        subject: { type: 'string', description: 'Email subject line' },
+        body: { type: 'string', description: 'Email body text' },
+      },
+      required: ['to', 'subject', 'body'],
+    },
+  },
+  {
+    name: 'reply_to_email',
+    description: 'Reply to an email. Use the email ID from get_recent_emails.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        message_id: { type: 'string', description: 'The email message ID to reply to' },
+        reply_text: { type: 'string', description: 'The reply body text' },
+      },
+      required: ['message_id', 'reply_text'],
+    },
+  },
+  {
+    name: 'search_emails',
+    description: 'Search emails by keyword, sender name, or subject.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search keyword or phrase' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'list_files',
+    description: 'List files and folders in OneDrive or SharePoint.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        folder_path: { type: 'string', description: 'Folder path e.g. "Documents" or "Documents/Reports". Leave empty for root.' },
+      },
+    },
+  },
+  {
+    name: 'search_files',
+    description: 'Search for files by name or keyword in OneDrive/SharePoint.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'File name or keyword to search for' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'create_file',
+    description: 'Create a new text file in OneDrive.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_name: { type: 'string', description: 'File name e.g. "Meeting Notes March 8.txt"' },
+        content: { type: 'string', description: 'Text content to write to the file' },
+        folder_path: { type: 'string', description: 'Folder to save in e.g. "Documents". Leave empty for root.' },
+      },
+      required: ['file_name', 'content'],
+    },
+  },
+  {
+    name: 'read_file',
+    description: 'Read the contents of a text file from OneDrive.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_path: { type: 'string', description: 'Full path to file e.g. "Documents/notes.txt"' },
+      },
+      required: ['file_path'],
+    },
+  },
+
+  {
+    name: 'get_attendance_report',
+    description: 'Get the attendance/clock-in report for today or a specific date.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'Date in YYYY-MM-DD format. Leave empty for today.' },
+      },
+    },
+  },
+  {
+    name: 'get_clockin_link',
+    description: 'Get the clock-in link to share with staff.',
+    input_schema: { type: 'object', properties: {} },
+  },
   {
     name: 'remove_schedule',
     description: 'Remove/cancel a scheduled message by its label.',
@@ -182,6 +309,138 @@ async function executeTool(name, input, whatsappClient) {
         : `❌ Schedule "${input.label}" not found.`;
     }
 
+
+    case 'get_recent_emails': {
+      const emails = await getRecentEmails(input.count || 5);
+      if (!emails.length) return '📭 No emails found.';
+      return '📧 *Recent emails:*
+
+' + emails.map(e =>
+        `${e.index}. ${e.isRead ? '' : '🔵 '}*${e.subject}*
+   From: ${e.fromName || e.from}
+   ${e.received}
+   ${e.preview}`
+      ).join('
+
+');
+    }
+
+    case 'send_email': {
+      await sendEmail(input.to, input.subject, input.body);
+      return `✅ Email sent to ${input.to}
+📧 Subject: "${input.subject}"`;
+    }
+
+    case 'reply_to_email': {
+      await replyToEmail(input.message_id, input.reply_text);
+      return `✅ Reply sent successfully.`;
+    }
+
+    case 'search_emails': {
+      const emails = await searchEmails(input.query);
+      if (!emails.length) return `📭 No emails found for "${input.query}".`;
+      return `🔍 *Emails matching "${input.query}":*
+
+` + emails.map(e =>
+        `${e.index}. *${e.subject}*
+   From: ${e.from}
+   ${e.received}
+   ${e.preview}`
+      ).join('
+
+');
+    }
+
+    case 'list_files': {
+      const files = await listFiles(input.folder_path || '');
+      if (!files.length) return '📭 No files found.';
+      const folder = input.folder_path || 'root';
+      return `📁 *Files in ${folder}:*
+
+` + files.map(f =>
+        `${f.index}. ${f.type === 'folder' ? '📂' : '📄'} ${f.name}${f.size ? ` (${f.size})` : ''}
+   Modified: ${f.modified}`
+      ).join('
+');
+    }
+
+    case 'search_files': {
+      const files = await searchFiles(input.query);
+      if (!files.length) return `📭 No files found for "${input.query}".`;
+      return `🔍 *Files matching "${input.query}":*
+
+` + files.map(f =>
+        `${f.index}. 📄 ${f.name}
+   Modified: ${f.modified}`
+      ).join('
+');
+    }
+
+    case 'create_file': {
+      const result = await createFile(input.file_name, input.content, input.folder_path || '');
+      return `✅ File created: *${result.name}*`;
+    }
+
+    case 'read_file': {
+      const text = await readFile(input.file_path);
+      return `📄 *${input.file_path}:*
+
+${text}`;
+    }
+
+
+
+  {
+    name: 'manage_projects',
+    description: 'List, add or remove projects from the clock-in project dropdown.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['list', 'add', 'remove'], description: 'What to do' },
+        project_name: { type: 'string', description: 'Project name (required for add/remove)' },
+      },
+      required: ['action'],
+    },
+  },
+
+
+    case 'manage_projects': {
+      if (input.action === 'list') {
+        const projects = getProjects(false);
+        if (!projects.length) return '📋 No projects yet.';
+        return '📋 *Projects:*
+' + projects.map(p =>
+          `${p.active ? '🟢' : '🔴'} ${p.name}`
+        ).join('
+');
+      }
+      if (input.action === 'add') {
+        const result = addProject(input.project_name);
+        return result.success
+          ? `✅ Project added: *${result.name}*`
+          : `❌ ${result.message}`;
+      }
+      if (input.action === 'remove') {
+        const result = removeProject(input.project_name);
+        return result.success
+          ? `✅ Project removed: *${input.project_name}*`
+          : `❌ ${result.message}`;
+      }
+      return '❌ Unknown action.';
+    }
+
+    case 'get_attendance_report': {
+      const records = input.date
+        ? getAttendanceByDate(input.date)
+        : getTodayAttendance();
+      return formatDailyReport(records);
+    }
+
+    case 'get_clockin_link': {
+      const url = (global.APP_URL || 'your-railway-url') + '/clockin';
+      return `📋 Clock-in link:\n${url}\n\nShare this with your staff to clock in and out.`;
+    }
+
     default:
       return `❌ Unknown tool: ${name}`;
   }
@@ -207,7 +466,13 @@ CRON EXPRESSIONS:
 - Every Friday at 5pm     → "0 17 * * 5"
 - 1st of every month 9am  → "0 9 1 * *"
 
-2. PERSONAL AI ASSISTANT
+2. MICROSOFT 365
+Use your Microsoft tools when the user wants to:
+- Read, search or send emails via Outlook
+- List, search, create or read files on OneDrive/SharePoint
+- Save meeting notes or documents
+
+3. PERSONAL AI ASSISTANT
 For everything else, be a helpful knowledgeable personal assistant. Help with:
 - Writing emails, messages, or content
 - Business advice and strategy
@@ -226,7 +491,8 @@ RESPONSE STYLE:
 - You have memory of this conversation so refer back to earlier context when relevant`;
 
 // ── Main handler ───────────────────────────────────────────────────────────
-async function handleCommand(userMessage, whatsappClient) {
+async function handleCommand(userMessage, whatsappClient, appUrl) {
+  if (appUrl) global.APP_URL = appUrl;
   addToHistory('user', userMessage);
 
   const messages = [...conversationHistory];
