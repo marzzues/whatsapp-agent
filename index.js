@@ -1,22 +1,56 @@
 // index.js — WhatsApp AI Agent entry point
-//
-// Setup:
-//   - This agent runs ON your WhatsApp Business number
-//   - You control it FROM your personal number
-//   - Set PERSONAL_NUMBER in .env to your personal number (digits only)
-//   - The agent ignores all messages except those from your personal number
-
 require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
+const http = require('http');
 const { handleCommand } = require('./agent');
 const { initScheduler } = require('./scheduler');
 
 // ── Config ────────────────────────────────────────────────────────────────
-// Your personal number — the ONLY number the agent will listen to
 const PERSONAL_NUMBER = process.env.PERSONAL_NUMBER;
+const PORT = process.env.PORT || 3000;
 
-// ── WhatsApp Client (runs as your Business number) ────────────────────────
+// ── QR Code web server ────────────────────────────────────────────────────
+// Serves the QR code as a scannable image at http://your-app-url/
+let latestQR = null;
+
+const server = http.createServer(async (req, res) => {
+  if (req.url === '/') {
+    if (!latestQR) {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`
+        <html><body style="font-family:sans-serif;text-align:center;padding:40px;">
+          <h2>WhatsApp Agent</h2>
+          <p>✅ Already authenticated — no QR code needed.</p>
+          <p>The agent is running. Message your business number from your personal phone to use it.</p>
+        </body></html>
+      `);
+    } else {
+      const qrImageUrl = await QRCode.toDataURL(latestQR);
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`
+        <html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#f5f5f5;">
+          <h2>📱 Scan with WhatsApp Business</h2>
+          <p>Open <strong>WhatsApp Business</strong> → Linked Devices → Link a Device</p>
+          <img src="${qrImageUrl}" style="width:300px;height:300px;border:8px solid white;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);" />
+          <p style="color:#888;font-size:14px;">Page auto-refreshes every 30 seconds. QR codes expire after ~20 seconds.</p>
+          <script>setTimeout(() => location.reload(), 30000);</script>
+        </body></html>
+      `);
+    }
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`\n🌐 QR Code server running on port ${PORT}`);
+  console.log(`   Open your Railway app URL in a browser to scan the QR code\n`);
+});
+
+// ── WhatsApp Client ────────────────────────────────────────────────────────
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'whatsapp-agent' }),
   puppeteer: {
@@ -34,14 +68,18 @@ const client = new Client({
   },
 });
 
-// ── QR Code — scan with your WhatsApp BUSINESS app ────────────────────────
+// ── QR Code ────────────────────────────────────────────────────────────────
 client.on('qr', (qr) => {
-  console.log('\n📱 Scan this QR code with your WhatsApp BUSINESS app:\n');
-  console.log('   WhatsApp Business → Linked Devices → Link a Device\n');
-  qrcode.generate(qr, { small: true });
+  latestQR = qr;
+  console.log('📱 New QR code generated — open your Railway app URL in a browser to scan it');
+  qrcode.generate(qr, { small: true }); // also log it as fallback
 });
 
-client.on('authenticated', () => console.log('✅ WhatsApp Business authenticated'));
+client.on('authenticated', () => {
+  latestQR = null; // clear QR once authenticated
+  console.log('✅ WhatsApp Business authenticated');
+});
+
 client.on('ready', async () => {
   console.log('🤖 WhatsApp Agent is ready!\n');
   console.log(`   Listening for commands from : ${PERSONAL_NUMBER || '(not set — accepting ALL messages)'}`);
@@ -58,7 +96,6 @@ client.on('message', async (msg) => {
     const contact = await msg.getContact();
     const senderNumber = contact.number;
 
-    // Only accept messages from your personal number
     if (PERSONAL_NUMBER && senderNumber !== PERSONAL_NUMBER) return;
 
     const body = msg.body.trim();
