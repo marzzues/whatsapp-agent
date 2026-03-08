@@ -19,16 +19,7 @@ const {
   addProject,
   removeProject,
 } = require('./clockin');
-const {
-  getRecentEmails,
-  sendEmail,
-  replyToEmail,
-  searchEmails,
-  listFiles,
-  searchFiles,
-  createFile,
-  readFile,
-} = require('./microsoft');
+// Microsoft integration not yet configured
 
 const client_ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
