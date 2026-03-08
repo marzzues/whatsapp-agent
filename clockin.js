@@ -77,9 +77,14 @@ function formatTimeStr(timeStr) {
 }
 
 // ── Clock In ───────────────────────────────────────────────────────────────
+function roundToNearest30(ts) {
+  const ms30 = 30 * 60 * 1000;
+  return Math.round(ts / ms30) * ms30;
+}
+
 function clockIn(name, phone = null, fitForWork = true, project = null) {
   const date = getPerthDate();
-  const now = Date.now();
+  const now = roundToNearest30(Date.now());
 
   const existing = db.prepare(
     'SELECT * FROM attendance WHERE name = ? AND date = ?'
@@ -220,6 +225,7 @@ function getTodayStatusForName(name) {
     clockedIn: true,
     clockedOut: !!record.clock_out,
     clockInTime: getPerthTime(record.clock_in),
+    clockInTs: record.clock_in,
     clockOutTime: record.clock_out ? getPerthTime(record.clock_out) : null,
     project: record.project,
   };
