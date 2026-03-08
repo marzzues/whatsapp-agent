@@ -216,6 +216,18 @@ const TOOLS = [
   },
 
   {
+    name: 'manage_projects',
+    description: 'List, add or remove projects from the clock-in project dropdown.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['list', 'add', 'remove'], description: 'What to do' },
+        project_name: { type: 'string', description: 'Project name (required for add/remove)' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'get_attendance_report',
     description: 'Get the attendance/clock-in report for today or a specific date.',
     input_schema: {
@@ -313,16 +325,9 @@ async function executeTool(name, input, whatsappClient) {
     case 'get_recent_emails': {
       const emails = await getRecentEmails(input.count || 5);
       if (!emails.length) return '📭 No emails found.';
-      return '📧 *Recent emails:*
-
-' + emails.map(e =>
-        `${e.index}. ${e.isRead ? '' : '🔵 '}*${e.subject}*
-   From: ${e.fromName || e.from}
-   ${e.received}
-   ${e.preview}`
-      ).join('
-
-');
+      return '📧 *Recent emails:*\n\n' + emails.map(e =>
+        `${e.index}. ${e.isRead ? '' : '🔵 '}*${e.subject}*\n   From: ${e.fromName || e.from}\n   ${e.received}\n   ${e.preview}`
+      ).join('\n\n');
     }
 
     case 'send_email': {
@@ -339,41 +344,26 @@ async function executeTool(name, input, whatsappClient) {
     case 'search_emails': {
       const emails = await searchEmails(input.query);
       if (!emails.length) return `📭 No emails found for "${input.query}".`;
-      return `🔍 *Emails matching "${input.query}":*
-
-` + emails.map(e =>
-        `${e.index}. *${e.subject}*
-   From: ${e.from}
-   ${e.received}
-   ${e.preview}`
-      ).join('
-
-');
+      return `🔍 *Emails matching "${input.query}":*\n\n` + emails.map(e =>
+        `${e.index}. *${e.subject}*\n   From: ${e.from}\n   ${e.received}\n   ${e.preview}`
+      ).join('\n\n');
     }
 
     case 'list_files': {
       const files = await listFiles(input.folder_path || '');
       if (!files.length) return '📭 No files found.';
       const folder = input.folder_path || 'root';
-      return `📁 *Files in ${folder}:*
-
-` + files.map(f =>
-        `${f.index}. ${f.type === 'folder' ? '📂' : '📄'} ${f.name}${f.size ? ` (${f.size})` : ''}
-   Modified: ${f.modified}`
-      ).join('
-');
+      return `📁 *Files in ${folder}:*\n\n` + files.map(f =>
+        `${f.index}. ${f.type === 'folder' ? '📂' : '📄'} ${f.name}${f.size ? ` (${f.size})` : ''}\n   Modified: ${f.modified}`
+      ).join('\n');
     }
 
     case 'search_files': {
       const files = await searchFiles(input.query);
       if (!files.length) return `📭 No files found for "${input.query}".`;
-      return `🔍 *Files matching "${input.query}":*
-
-` + files.map(f =>
-        `${f.index}. 📄 ${f.name}
-   Modified: ${f.modified}`
-      ).join('
-');
+      return `🔍 *Files matching "${input.query}":*\n\n` + files.map(f =>
+        `${f.index}. 📄 ${f.name}\n   Modified: ${f.modified}`
+      ).join('\n');
     }
 
     case 'create_file': {
@@ -390,29 +380,37 @@ ${text}`;
 
 
 
-  {
-    name: 'manage_projects',
-    description: 'List, add or remove projects from the clock-in project dropdown.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['list', 'add', 'remove'], description: 'What to do' },
-        project_name: { type: 'string', description: 'Project name (required for add/remove)' },
-      },
-      required: ['action'],
-    },
-  },
-
 
     case 'manage_projects': {
       if (input.action === 'list') {
         const projects = getProjects(false);
         if (!projects.length) return '📋 No projects yet.';
-        return '📋 *Projects:*
-' + projects.map(p =>
+        return '📋 *Projects:*\n' + projects.map(p =>
           `${p.active ? '🟢' : '🔴'} ${p.name}`
-        ).join('
-');
+        ).join('\n');
+      }
+      if (input.action === 'add') {
+        const result = addProject(input.project_name);
+        return result.success
+          ? `✅ Project added: *${result.name}*`
+          : `❌ ${result.message}`;
+      }
+      if (input.action === 'remove') {
+        const result = removeProject(input.project_name);
+        return result.success
+          ? `✅ Project removed: *${input.project_name}*`
+          : `❌ ${result.message}`;
+      }
+      return '❌ Unknown action.';
+    }
+
+    case 'manage_projects': {
+      if (input.action === 'list') {
+        const projects = getProjects(false);
+        if (!projects.length) return '📋 No projects yet.';
+        return '📋 *Projects:*\n' + projects.map(p =>
+          `${p.active ? '🟢' : '🔴'} ${p.name}`
+        ).join('\n');
       }
       if (input.action === 'add') {
         const result = addProject(input.project_name);

@@ -309,9 +309,7 @@ function formatHoursReport(records, label, name) {
       : getPerthTime(r.clock_out);
     return `📅 *${r.date}*${r.project ? ' · ' + r.project : ''}
    ${getPerthTime(r.clock_in)} → ${outTime} · *${r.hours}h*`;
-  }).join('
-
-');
+  }).join('\n\n');
 
   msg += `
 
