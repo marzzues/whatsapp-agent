@@ -198,6 +198,8 @@ Use your tools when the user wants to:
 
 PERSONALIZATION: Messages can include {{groupName}} — automatically replaced with each group's name before sending.
 
+TIMEZONE: All times are in Perth, Western Australia (AWST, UTC+8). When the user says '9am' they mean 9am Perth time.
+
 CRON EXPRESSIONS:
 - Every Monday at 9am     → "0 9 * * 1"
 - Every day at 8am        → "0 8 * * *"

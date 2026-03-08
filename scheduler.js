@@ -1,3 +1,4 @@
+// Timezone: Australia/Perth (AWST, UTC+8)
 // scheduler.js — Cron-based message scheduler
 const cron = require('node-cron');
 const fs = require('fs');
@@ -54,7 +55,7 @@ function startJob(schedule, whatsappClient) {
     } catch (err) {
       console.error(`❌ Job "${schedule.label}" failed:`, err.message);
     }
-  });
+  }, { timezone: 'Australia/Perth' });
 
   return true;
 }
