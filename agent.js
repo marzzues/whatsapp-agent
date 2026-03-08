@@ -1,3 +1,4 @@
+require('dotenv').config();
 // agent.js — Claude-powered assistant with WhatsApp tools + general chat
 const Anthropic = require('@anthropic-ai/sdk');
 const {
@@ -11,7 +12,7 @@ const {
   getSchedules,
 } = require('./scheduler');
 
-const client_ai = new Anthropic();
+const client_ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Conversation memory (within a running session) ─────────────────────────
 // Remembers the last 20 messages so Claude can refer back to earlier context
