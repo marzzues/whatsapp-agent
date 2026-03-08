@@ -6,7 +6,7 @@ const QRCode = require('qrcode');
 const http = require('http');
 const { handleCommand } = require('./agent');
 const { initScheduler } = require('./scheduler');
-const { transcribeVoiceNote } = require('./voice');
+// Voice transcription not yet configured
 const { clockIn, clockOut, getTodayAttendance, formatDailyReport, getKnownStaff, getTodayStatusForName, getProjects, addProject, removeProject, getHoursForPhone, getNameFromPhone } = require('./clockin');
 
 // ── Config ────────────────────────────────────────────────────────────────
@@ -455,15 +455,6 @@ client.on('message', async (msg) => {
 
     // ── Personal number only beyond this point ───────────────────────────
     if (PERSONAL_NUMBER && senderNumber !== PERSONAL_NUMBER) return;
-
-    if (msg.type === MessageTypes.AUDIO || msg.type === MessageTypes.PTT) {
-      await msg.reply('🎤 Transcribing...');
-      const transcript = await transcribeVoiceNote(msg);
-      await msg.reply(`🗣 *You said:* ${transcript}`);
-      const reply = await handleCommand(transcript, client);
-      await msg.reply(reply);
-      return;
-    }
 
     const body = msg.body.trim();
     if (!body) return;
