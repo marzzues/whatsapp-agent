@@ -1,0 +1,23 @@
+{
+  "name": "whatsapp-task-agent",
+  "version": "1.0.0",
+  "description": "AI-powered WhatsApp agent for task and reminder management",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode-terminal": "^0.12.0",
+    "node-cron": "^3.0.3",
+    "better-sqlite3": "^9.4.3",
+    "date-fns": "^3.3.1",
+    "chrono-node": "^2.7.4",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

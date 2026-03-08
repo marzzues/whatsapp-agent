@@ -1,0 +1,16 @@
+[
+  {
+    "label": "Monday Morning Motivation",
+    "message": "Good morning, {{groupName}}! 🌟 Hope everyone has a productive week ahead!",
+    "cron": "0 9 * * 1",
+    "target": "all_groups",
+    "group_names": []
+  },
+  {
+    "label": "Friday Wrap-Up",
+    "message": "Happy Friday, {{groupName}}! 🎉 Great week everyone. Enjoy your weekend!",
+    "cron": "0 17 * * 5",
+    "target": "specific_groups",
+    "group_names": ["Team", "Work"]
+  }
+]
