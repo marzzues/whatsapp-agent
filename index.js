@@ -21,6 +21,11 @@ const APP_URL = process.env.RAILWAY_PUBLIC_DOMAIN
 let latestQR = null;
 let isReady = false;
 
+// ── Health tracking ────────────────────────────────────────────────────────
+let botStartTime = Date.now();
+let lastMessageTs = null;
+let disconnectAlertSent = false;
+
 // ── HTTP Server ────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost`);
@@ -35,6 +40,20 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       return res.end(JSON.stringify({ clockedIn: false }));
     }
+  }
+
+  // ── Health check endpoint ────────────────────────────────────────────────
+  if (url.pathname === '/health') {
+    const uptimeSecs = Math.floor((Date.now() - botStartTime) / 1000);
+    const status = {
+      status: isReady ? 'ok' : 'degraded',
+      whatsapp: isReady ? 'connected' : 'disconnected',
+      uptime_seconds: uptimeSecs,
+      last_message: lastMessageTs ? new Date(lastMessageTs).toISOString() : null,
+      timestamp: new Date().toISOString(),
+    };
+    res.writeHead(isReady ? 200 : 503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(status));
   }
 
   // ── Projects list ──────────────────────────────────────────────────────────
@@ -91,6 +110,12 @@ const server = http.createServer(async (req, res) => {
               ? `🟠 *${name}* clocked OUT at ${result.time}${result.wasLate ? ' _(manual time)_' : ''} (${result.hours}h worked)`
               : `🟢 *${name}* clocked IN at ${result.time}${phone ? ` — 📱 ${phone}` : ''}`;
             notifyOwner(msg);
+
+            // Post clock-in to Timesheet Bot group
+            if (action === 'in') {
+              const groupMsg = `🟢 *${name}* clocked in at *${result.time}*${project ? `\n📋 ${project}` : ''}`;
+              sendToTimesheetBot(groupMsg);
+            }
           }
         } catch (err) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -626,6 +651,21 @@ async function notifyOwner(message) {
   }
 }
 
+async function sendToTimesheetBot(message) {
+  if (!whatsappReady) return;
+  try {
+    const chats = await client.getChats();
+    const group = chats.find(c => c.isGroup && c.name === 'Timesheet Bot');
+    if (!group) {
+      console.warn('⚠️ "Timesheet Bot" group not found');
+      return;
+    }
+    await group.sendMessage(message);
+  } catch (err) {
+    console.error('Could not send to Timesheet Bot group:', err.message);
+  }
+}
+
 client.on('qr', (qr) => {
   latestQR = qr;
   console.log('📱 QR code ready — open your Railway app URL to scan');
@@ -641,13 +681,41 @@ client.on('ready', async () => {
   console.log(`   Personal number : ${PERSONAL_NUMBER}`);
   console.log(`   Clock-in URL    : ${APP_URL}/clockin\n`);
   await initScheduler(client, APP_URL);
+  disconnectAlertSent = false;
+
+  // ── Health ping at 6am and 6pm daily ─────────────────────────────────────
+  const cron = require('node-cron');
+  cron.schedule('0 6,18 * * *', async () => {
+    const hour = new Date().toLocaleString('en-AU', { timeZone: 'Australia/Perth', hour: 'numeric', hour12: true });
+    const uptime = Math.floor((Date.now() - botStartTime) / 1000 / 60);
+    notifyOwner(`✅ *Bot health check — ${hour}*\nStatus: Online\nUptime: ${uptime} mins\nClock-in form: ${APP_URL}/clockin`);
+  }, { timezone: 'Australia/Perth' });
+
+  // ── Watchdog: check every 15 mins ────────────────────────────────────────
+  cron.schedule('*/15 * * * *', async () => {
+    if (!isReady && !disconnectAlertSent) {
+      disconnectAlertSent = true;
+      notifyOwner('🚨 *Bot alert*: WhatsApp is disconnected.\nVisit ' + APP_URL + ' to scan the QR code and reconnect.');
+    }
+    if (isReady) disconnectAlertSent = false;
+  }, { timezone: 'Australia/Perth' });
 });
 
 client.on('auth_failure', (msg) => console.error('❌ Auth failed:', msg));
-client.on('disconnected', (reason) => { isReady = false; whatsappReady = false; console.warn('⚠️ Disconnected:', reason); });
+client.on('disconnected', async (reason) => {
+  isReady = false;
+  whatsappReady = false;
+  console.warn('⚠️ Disconnected:', reason);
+  // Try to reinitialise after 10 seconds
+  setTimeout(() => {
+    console.log('🔄 Attempting to reinitialise WhatsApp client...');
+    try { client.initialize(); } catch(e) { console.error('Reinit failed:', e.message); }
+  }, 10000);
+});
 
 // ── Message handler ────────────────────────────────────────────────────────
 client.on('message', async (msg) => {
+  lastMessageTs = Date.now();
   try {
     const contact = await msg.getContact();
     const senderNumber = contact.number;
