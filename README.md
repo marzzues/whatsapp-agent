@@ -1,6 +1,32 @@
 Copy
 git clone https://github.com/marzzues/marzai-workspace.git ~/.openclaw/workspace
 That's your full backup sorted. Whenever you're ready to move to native Linux on the mini desktop, the restore is one command. 🎉
+Step 2: Flash the USB
+
+Download Rufus from rufus.ie (free, Windows)
+Plug in your USB stick (8GB+)
+Open Rufus → select the Ubuntu ISO → select your USB → click Start
+Takes about 5 minutes
+Step 3: Disable Secure Boot on the IdeaCentre
+
+Plug in monitor + keyboard to the IdeaCentre
+Power it on, spam F1 to get into BIOS
+Go to Security tab → find Secure Boot → set to Disabled
+Save and exit
+Step 4: Boot from USB
+
+Plug in the USB
+Restart, spam F12 for the boot menu
+Select your USB drive
+Step 5: Install Ubuntu
+
+Choose "Install Ubuntu Server"
+Follow the wizard — accept defaults
+When it asks about storage → "Use entire disk" ✅
+Set username: marza, pick a password
+When asked about OpenSSH → install it (lets you connect remotely later)
+Let it install (~15 min)
+Remove USB when prompted, let it reboot
 
 
 # 🤖 WhatsApp Broadcast & Automation Agent
