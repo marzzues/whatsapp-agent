@@ -1,3 +1,5 @@
+git clone https://github.com/marzzues/marzai-workspace.git ~/.openclaw/workspace
+
 # 🤖 WhatsApp Broadcast & Automation Agent
 
 An AI-powered agent that lives on your **WhatsApp Business number**. You control it by messaging it from your **personal number** — in plain English, no special commands needed.
