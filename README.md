@@ -1,4 +1,7 @@
+Copy
 git clone https://github.com/marzzues/marzai-workspace.git ~/.openclaw/workspace
+That's your full backup sorted. Whenever you're ready to move to native Linux on the mini desktop, the restore is one command. 🎉
+
 
 # 🤖 WhatsApp Broadcast & Automation Agent
 
